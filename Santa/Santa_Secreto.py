@@ -4,6 +4,8 @@ import json
 import os
 
 import base64
+import json
+import os
 import random
 import streamlit as st
 
@@ -13,73 +15,71 @@ st.set_page_config(
 )
 
 
-# Función para cargar la imagen local como fondo en CSS
-def set_background_image(image_file_path):
-    with open(image_file_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode()
+# 2. Manejo de la Imagen de Fondo (Soporta .jpeg, .jpg, .png)
+def cargar_fondo_local():
+    archivos_imagen = [
+        "logo.jpeg",
+        "logo.jpg",
+        "logo.png",
+        "1000001288.jpg",
+        "1000001288.jpeg",
+    ]
+    encoded_string = ""
+    formato = "jpeg"
 
-    css_style = f"""
-    <style>
-    .stApp {{
-        background: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)),
-                    url("data:image/jpeg;base64,{encoded_string}");
-        background-size: contain;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }}
-    .main {{
-        background: transparent;
-    }}
-    .stButton>button {{
-        width: 100%;
-        border-radius: 10px;
-        font-weight: bold;
-    }}
-    .card-secret {{
-        background: linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%);
-        padding: 25px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        margin-top: 20px;
-        border: 1px solid rgba(255, 215, 0, 0.3);
-    }}
-    .name-display {{
-        font-size: 32px;
-        font-weight: 800;
-        color: #FFD700;
-        margin: 15px 0;
-        letter-spacing: 1px;
-    }}
-    </style>
-    """
-    st.markdown(css_style, unsafe_allow_html=True)
+    for archivo in archivos_imagen:
+        if os.path.exists(archivo):
+            with open(archivo, "rb") as img_file:
+                encoded_string = base64.b64encode(img_file.read()).decode()
+                if archivo.endswith(".png"):
+                    formato = "png"
+                break
 
-
-# Si tienes la imagen en la misma carpeta guardada como "logo.jpg":
-try:
-    set_background_image("logo.jpg")
-except FileNotFoundError:
-    # Estilo de respaldo si aún no has puesto el archivo de imagen en la carpeta
-    st.markdown(
-        """
+    if encoded_string:
+        css = f"""
         <style>
-        .stApp { background-color: #0e1117; }
-        .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; }
-        .card-secret {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            padding: 25px; border-radius: 15px; color: white; text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); margin-top: 20px;
-        }
-        .name-display { font-size: 32px; font-weight: 800; color: #FFD700; margin: 15px 0; }
+        [data-testid="stAppViewContainer"] {{
+            background-color: #0e1117;
+            background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), 
+                              url("data:image/{formato};base64,{encoded_string}"); 
+            background-size: 380px;
+            background-position: center 20%;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        [data-testid="stHeader"] {{
+            background-color: rgba(0,0,0,0) !important;
+        }}
+        .card-secret {{
+            background: linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%);
+            padding: 25px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            margin-top: 20px;
+            border: 1px solid rgba(255, 215, 0, 0.4);
+        }}
+        .name-display {{
+            font-size: 32px;
+            font-weight: 800;
+            color: #FFD700;
+            margin: 15px 0;
+            letter-spacing: 1px;
+        }}
+        .stButton>button {{
+            width: 100%;
+            border-radius: 10px;
+            font-weight: bold;
+        }}
         </style>
-    """,
-        unsafe_allow_html=True,
-    )
+        """
+        st.markdown(css, unsafe_allow_html=True)
 
-# 2. Lista de Participantes
+
+cargar_fondo_local()
+
+# 3. Lista de Participantes
 PARTICIPANTES = [
     "César",
     "Pedro",
@@ -99,36 +99,50 @@ PARTICIPANTES = [
     "Daniel",
 ]
 
+ARCH_DATOS = "datos_sorteo.json"
 
-# 3. Lógica del Sorteo Segura
+
+# 4. Funciones de Persistencia en Archivo JSON
 def realizar_sorteo(lista):
     amigos = lista.copy()
-    max_intentos = 1000
-    for _ in range(max_intentos):
+    for _ in range(1000):
         random.shuffle(amigos)
         if all(lista[i] != amigos[i] for i in range(len(lista))):
             return {lista[i]: amigos[i] for i in range(len(lista))}
     return None
 
 
-# 4. Inicialización del Estado de la Sesión
-if "sorteo" not in st.session_state:
-    st.session_state.sorteo = realizar_sorteo(PARTICIPANTES)
+def inicializar_o_cargar_datos(forzar_reinicio=False):
+    if not os.path.exists(ARCH_DATOS) or forzar_reinicio:
+        sorteo = realizar_sorteo(PARTICIPANTES)
+        pins_num = random.sample(range(1000, 9999), len(PARTICIPANTES))
+        pins = {
+            nombre: str(pin) for nombre, pin in zip(PARTICIPANTES, pins_num)
+        }
+        revelados = {nombre: False for nombre in PARTICIPANTES}
 
-if "pins" not in st.session_state:
-    pins_disponibles = random.sample(range(1000, 9999), len(PARTICIPANTES))
-    st.session_state.pins = {
-        nombre: str(pin) for nombre, pin in zip(PARTICIPANTES, pins_disponibles)
-    }
+        datos = {"sorteo": sorteo, "pins": pins, "revelados": revelados}
 
-if "revelados" not in st.session_state:
-    st.session_state.revelados = {nombre: False for nombre in PARTICIPANTES}
+        with open(ARCH_DATOS, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=4)
+        return datos
+    else:
+        with open(ARCH_DATOS, "r", encoding="utf-8") as f:
+            return json.load(f)
 
-# 5. Encabezado de la App
+
+def guardar_datos(datos):
+    with open(ARCH_DATOS, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=4)
+
+
+# Cargar los datos globales
+datos_globales = inicializar_o_cargar_datos()
+
+# 5. Encabezado
 st.title("🎅⚽ Santa Secreto Futbolero 🏆")
 st.write("¡Descubre a quién te toca regalarle la camiseta retro!")
 
-# Pestañas de navegación
 tab1, tab2 = st.tabs(
     ["👤 Descubrir Mi Amigo Secreto", "⚙️ Panel de Administrador"]
 )
@@ -152,11 +166,14 @@ with tab1:
         elif not pin_ingresado:
             st.warning("Ingresa tu PIN para continuar.")
         else:
-            pin_correcto = st.session_state.pins.get(nombre_sel, "")
+            pin_correcto = datos_globales["pins"].get(nombre_sel, "")
 
-            if pin_ingresado == pin_correcto:
-                st.session_state.revelados[nombre_sel] = True
-                asignado = st.session_state.sorteo.get(
+            if pin_ingresado.strip() == pin_correcto.strip():
+                # Actualizar y guardar que ya lo consultó
+                datos_globales["revelados"][nombre_sel] = True
+                guardar_datos(datos_globales)
+
+                asignado = datos_globales["sorteo"].get(
                     nombre_sel, "No asignado"
                 )
                 st.markdown(
@@ -186,39 +203,31 @@ with tab2:
     if admin_pass == "admin123":
         st.success("Acceso concedido")
 
-        # -----------------------------------------------------------
-        # BOTÓN DE REINICIO DE SORTEO Y PINS
-        # -----------------------------------------------------------
         st.warning("⚠️ Zona de Acciones del Administrador")
         if st.button("🔄 Reiniciar Sorteo y Generar Nuevos PINs"):
-            st.session_state.clear()
-            st.success("¡Sorteo reiniciado con éxito!")
+            inicializar_o_cargar_datos(forzar_reinicio=True)
+            st.success(
+                "¡Sorteo reiniciado y guardado globalmente con éxito!"
+            )
             st.rerun()
 
         st.divider()
 
-        # -----------------------------------------------------------
-        # SEGUIMIENTO Y ESTADO DE CONSULTAS
-        # -----------------------------------------------------------
+        # Seguimiento en Vivo
         st.markdown("### 📊 Seguimiento de Consultas")
+        revelados_dict = datos_globales.get("revelados", {})
+        total_p = len(PARTICIPANTES)
+        consultados = sum(1 for e in revelados_dict.values() if e)
 
-        total_participantes = len(PARTICIPANTES)
-        consultados = sum(
-            1 for estado in st.session_state.revelados.values() if estado
-        )
-
-        st.progress(consultados / total_participantes)
+        st.progress(consultados / total_p)
         st.info(
-            f"**{consultados} de {total_participantes}** personas ya descubrieron a su amigo secreto."
+            f"**{consultados} de {total_p}** personas ya descubrieron a su amigo secreto."
         )
 
         col1, col2 = st.columns(2)
-
         with col1:
             st.markdown("**🟢 Ya consultaron:**")
-            vistos = [
-                n for n, e in st.session_state.revelados.items() if e
-            ]
+            vistos = [n for n, e in revelados_dict.items() if e]
             if vistos:
                 for nombre in vistos:
                     st.write(f"✅ {nombre}")
@@ -227,9 +236,7 @@ with tab2:
 
         with col2:
             st.markdown("**⏳ Pendientes por consultar:**")
-            pendientes = [
-                n for n, e in st.session_state.revelados.items() if not e
-            ]
+            pendientes = [n for n, e in revelados_dict.items() if not e]
             if pendientes:
                 for nombre in pendientes:
                     st.write(f"⏳ {nombre}")
@@ -238,14 +245,14 @@ with tab2:
 
         st.divider()
 
-        # -----------------------------------------------------------
-        # CREDENCIALES PARA ENVIAR POR WHATSAPP
-        # -----------------------------------------------------------
+        # Credenciales fijas y persistentes
         st.markdown("### 🔑 Credenciales para enviar a los participantes")
-        st.write("Copia el PIN de cada participante y envíaselo por privado:")
+        st.write(
+            "Los PINs guardados actualmente son fijos para todos los dispositivos:"
+        )
 
         for nombre in PARTICIPANTES:
-            pin = st.session_state.pins.get(nombre, "N/A")
+            pin = datos_globales["pins"].get(nombre, "N/A")
             msg_wa = f"Hola {nombre}! 🎅⚽ Tu PIN para ver quién te tocó en el Santa Secreto Futbolero es: *{pin}*"
             st.code(
                 f"{nombre}: PIN [{pin}] | Mensaje: {msg_wa}", language="text"
@@ -253,9 +260,8 @@ with tab2:
 
         st.divider()
 
-        # Ver matriz completa del sorteo de forma privada
         with st.expander("👁️ Ver matriz completa del sorteo (CONFIDENCIAL)"):
-            st.json(st.session_state.sorteo)
+            st.json(datos_globales["sorteo"])
 
     elif admin_pass != "":
         st.error("Contraseña de administrador incorrecta.")
