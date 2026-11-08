@@ -183,7 +183,7 @@ with tab2:
         "Contraseña de Administrador:", type="password", key="admin_key"
     )
 
-    if admin_pass == "admin123":
+    if admin_pass == "admin123*+":
         st.success("Acceso concedido")
 
         # -----------------------------------------------------------
